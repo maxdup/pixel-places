@@ -37,7 +37,7 @@ function App() {
     return color;
   });
   const setColor = (color) => {
-    canvasHandler.current.setColor(color);
+    canvasHandler.current.setUserColor(color);
     localStorage.setItem("color", color);
     _setColor(color);
 
@@ -49,7 +49,7 @@ function App() {
     }));
   }
 
-  const [name, _setName] = useState(() => {
+  const [name] = useState(() => {
     let name = localStorage.getItem("name");
     if (!name){
       name = randomName();
@@ -58,19 +58,15 @@ function App() {
     return name;
   });
 
-  const [users, _setUsers] = useState(() =>  []);
-  const setUsers = (users) => {
-    let filteredUsers = users.filter((u) => u.name != name);
-    _setUsers(filteredUsers);
-  }
+  const [users, setUsers] = useState(() =>  []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return; // should never happen
 
     if (!canvasHandler.current){
-      canvasHandler.current = new CanvasHandler(canvas);
-      canvasHandler.current.setColor(color);
+      canvasHandler.current = new CanvasHandler(canvas, ws);
+      canvasHandler.current.setUserColor(color);
 
       ws.onopen = () => {
         // send a message as soon as the websocket connection is established
@@ -90,11 +86,18 @@ function App() {
     ws.onmessage = (e) => {
       const message = JSON.parse(e.data);
       switch (message.messageType) {
+      case 'canvasFrameSignal':
+        canvasHandler.current.drawFrame(message.data.frame);
+        break;
+      case 'canvasKeyframeSignal':
+      case 'canvasKeyframeResponse':
+        canvasHandler.current.drawKeyframe(message.data.keyframe);
+        break;
       case 'userConnectResponse':
         localStorage.setItem('uid', message.data.uid);
         break;
       case 'usersUpdateSignal':
-        setUsers(message.data.users);
+        setUsers(message.data.users.filter((u) => u.name !== name));
         break;
       case 'errorResponse':
         console.error(message);
@@ -103,7 +106,7 @@ function App() {
         console.error('Unrecognized message format from server', message);
       }
     };
-    }, []);
+  }, [color, name, setUsers, ws]);
 
 
 
