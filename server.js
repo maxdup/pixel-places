@@ -137,12 +137,22 @@ let userConnectHandler = (message, sessionState) => {
 
 let pixelUpdateHandler = (message, sessionState) => {
   // a pixel update is attempted, validate imcoming data and
+  if (!sessionState.currentUser){
+    return false
+  }
+  if (message.data.x < 0 || message.data.y < 0||
+      message.data.x >= canvasSize.width ||
+      message.data.y >= canvasSize.height){
+    return false;
+  }
+
   snapshot[message.data.x][message.data.y] = sessionState.currentUser.color;
 
   if (!updatedPixels[sessionState.currentUser.color]){
     updatedPixels[sessionState.currentUser.color] = [];
   }
   updatedPixels[sessionState.currentUser.color].push(message.data.x, message.data.y);
+
   return true;
 }
 
@@ -172,7 +182,7 @@ wsServer.on('connection', (ws) => {
 
     case 'userConnect':
       userConnectHandler(message, sessionState) ?
-        (signalUsers(), respondUserInfo(ws, sessionState.currentUser)) : respondFailure(ws, message);
+        (signalUsers(), respondUserInfo(ws, sessionState.currentUser), respondCanvasKeyframe(ws)) : respondFailure(ws, message);
       break;
 
     case 'pixelUpdate':
@@ -196,8 +206,6 @@ wsServer.on('connection', (ws) => {
   });
 
   ws.onerror = console.error;
-
-  respondCanvasKeyframe(ws);
 });
 
 setInterval(() => {

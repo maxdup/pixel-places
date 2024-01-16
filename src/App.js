@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { canvasSize } from './constants';
-import { CanvasHandler } from './canvas-handler';
+
+import { CanvasEventHandler } from './canvas-event-handler';
+import { CanvasRenderApi } from './canvas-render-api';
 import './App.css';
+
 
 function randomColor() {
   return `#${[0, 0, 0]
@@ -26,18 +29,16 @@ function App() {
   const websocketRef = useRef(getWebSocket());
   const ws = websocketRef.current;
 
-  let canvasHandler = useRef(null);
+  let canvasEventHandler = useRef(null);
+  let canvasRenderApi = useRef(null);
 
   const [color, _setColor] = useState(() => {
-    let color = localStorage.getItem("color");
-    if (!color){
-      color = randomColor();
-      localStorage.setItem("color", color);
-    }
+    let color = localStorage.getItem("color") || randomColor();
+    localStorage.setItem("color", color);
     return color;
   });
   const setColor = (color) => {
-    canvasHandler.current.setUserColor(color);
+    canvasEventHandler.current.setUserColor(color);
     localStorage.setItem("color", color);
     _setColor(color);
 
@@ -50,26 +51,50 @@ function App() {
   }
 
   const [name] = useState(() => {
-    let name = localStorage.getItem("name");
-    if (!name){
-      name = randomName();
-      localStorage.setItem("name", name);
-    }
+    let name = localStorage.getItem("name") || randomName();
+    localStorage.setItem("name", name);
     return name;
   });
 
   const [users, setUsers] = useState(() =>  []);
 
   useEffect(() => {
+
     const canvas = canvasRef.current;
     if (!canvas) return; // should never happen
 
-    if (!canvasHandler.current){
-      canvasHandler.current = new CanvasHandler(canvas, ws);
-      canvasHandler.current.setUserColor(color);
+    if (!canvasRenderApi.current){
+      canvasRenderApi.current = new CanvasRenderApi(canvas);
 
-      ws.onopen = () => {
-        // send a message as soon as the websocket connection is established
+      canvasEventHandler.current = new CanvasEventHandler(canvasRenderApi.current, ws);
+      canvasEventHandler.current.setUserColor(color);
+
+      ws.onmessage = (e) => {
+        const message = JSON.parse(e.data);
+
+        switch (message.messageType) {
+        case 'canvasFrameSignal':
+          canvasRenderApi.current.exec('drawFrame', message.data.frame);
+          break;
+        case 'canvasKeyframeSignal':
+        case 'canvasKeyframeResponse':
+          canvasRenderApi.current.exec('drawKeyframe', message.data.keyframe);
+          break;
+        case 'userConnectResponse':
+          localStorage.setItem('uid', message.data.uid);
+          break;
+        case 'usersUpdateSignal':
+          setUsers(message.data.users.filter((u) => u.name !== name));
+          break;
+        case 'errorResponse':
+          console.error(message);
+          break;
+        default:
+          console.error('Unrecognized message format from server', message);
+        }
+      };
+
+      let sendUserConnect = () => {
         ws.send(
           JSON.stringify({
             messageType: 'userConnect',
@@ -80,32 +105,15 @@ function App() {
             },
           })
         );
-      };
+      }
+
+      if (ws.readyState === WebSocket.OPEN){
+        sendUserConnect();
+      } else {
+        ws.onopen = sendUserConnect;
+      }
     }
 
-    ws.onmessage = (e) => {
-      const message = JSON.parse(e.data);
-      switch (message.messageType) {
-      case 'canvasFrameSignal':
-        canvasHandler.current.drawFrame(message.data.frame);
-        break;
-      case 'canvasKeyframeSignal':
-      case 'canvasKeyframeResponse':
-        canvasHandler.current.drawKeyframe(message.data.keyframe);
-        break;
-      case 'userConnectResponse':
-        localStorage.setItem('uid', message.data.uid);
-        break;
-      case 'usersUpdateSignal':
-        setUsers(message.data.users.filter((u) => u.name !== name));
-        break;
-      case 'errorResponse':
-        console.error(message);
-        break;
-      default:
-        console.error('Unrecognized message format from server', message);
-      }
-    };
   }, [color, name, setUsers, ws]);
 
 
