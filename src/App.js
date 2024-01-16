@@ -1,11 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { canvasSize } from './constants';
+import { CanvasHandler } from './canvas-handler';
 import './App.css';
 
 function randomColor() {
   return `#${[0, 0, 0]
     .map(() => Math.floor(Math.random() * 256).toString(16))
     .join('')}`;
+}
+function randomName(){
+  return 'User ' + Math.floor(Math.random() * (100 - 1) + 1);
 }
 
 let websocket;
@@ -20,15 +24,17 @@ function App() {
    * */
   const canvasRef = useRef(null);
   const websocketRef = useRef(getWebSocket());
+  const ws = websocketRef.current;
+
+  let canvasHandler = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return; // should never happen
 
-    const ctx = canvas.getContext('2d');
-    ctx.fillText('TO BE IMPLEMENTED: canvas content (delete this text).', 10, 10);
-
-    const ws = websocketRef.current;
+    if (!canvasHandler){
+      canvasHandler.current = new CanvasHandler(canvas);
+    }
 
     ws.onopen = () => {
       // send a message as soon as the websocket connection is established
