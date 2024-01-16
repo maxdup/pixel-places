@@ -28,43 +28,84 @@ function App() {
 
   let canvasHandler = useRef(null);
 
+  const [color, _setColor] = useState(() => {
+    let color = localStorage.getItem("color");
+    if (!color){
+      color = randomColor();
+      localStorage.setItem("color", color);
+    }
+    return color;
+  });
+  const setColor = (color) => {
+    canvasHandler.current.setColor(color);
+    localStorage.setItem("color", color);
+    _setColor(color);
+
+    ws.send(JSON.stringify({
+      messageType: 'userUpdate',
+      data: {
+        color: color,
+      },
+    }));
+  }
+
+  const [name, _setName] = useState(() => {
+    let name = localStorage.getItem("name");
+    if (!name){
+      name = randomName();
+      localStorage.setItem("name", name);
+    }
+    return name;
+  });
+
+  const [users, _setUsers] = useState(() =>  []);
+  const setUsers = (users) => {
+    let filteredUsers = users.filter((u) => u.name != name);
+    _setUsers(filteredUsers);
+  }
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return; // should never happen
 
-    if (!canvasHandler){
+    if (!canvasHandler.current){
       canvasHandler.current = new CanvasHandler(canvas);
-    }
+      canvasHandler.current.setColor(color);
 
-    ws.onopen = () => {
-      // send a message as soon as the websocket connection is established
-      ws.send(
-        JSON.stringify({
-          messageType: 'hey',
-          data: 'Hello peers!',
-        })
-      );
-    };
+      ws.onopen = () => {
+        // send a message as soon as the websocket connection is established
+        ws.send(
+          JSON.stringify({
+            messageType: 'userConnect',
+            data: {
+              uid: localStorage.getItem("uid"),
+              name: name,
+              color: color,
+            },
+          })
+        );
+      };
+    }
 
     ws.onmessage = (e) => {
       const message = JSON.parse(e.data);
       switch (message.messageType) {
-        case 'hello':
-          console.log('WebSocket says hello');
-          break;
-        case 'hey':
-          console.log('Message from another client:', message.data);
-          break;
-        case 'error':
-          console.error(message);
-          break;
-        default:
-          console.error('Unrecognized message format from server');
+      case 'userConnectResponse':
+        localStorage.setItem('uid', message.data.uid);
+        break;
+      case 'usersUpdateSignal':
+        setUsers(message.data.users);
+        break;
+      case 'errorResponse':
+        console.error(message);
+        break;
+      default:
+        console.error('Unrecognized message format from server', message);
       }
     };
-  }, []);
+    }, []);
 
-  const [color, setColor] = useState(() => randomColor());
+
 
   return (
     <div className="app">
@@ -89,8 +130,10 @@ function App() {
         </div>
         <div>
           <h3 className="connected_users_title">Connected users</h3>
-          <ConnectedUser color="red" name="Example user 1" />
-          <ConnectedUser color="blue" name="Example user 2" />
+          <ConnectedUser key='you' color={color} name={name + ' (You)'}/>
+          {users.map(user => (
+            <ConnectedUser key={user.uid} color={user.color} name={user.name} />
+          ))}
         </div>
       </main>
     </div>
