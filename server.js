@@ -169,7 +169,7 @@ wsServer.on('connection', (ws) => {
   ws.on('message', (data) => {
     const message = JSON.parse(data.toString());
 
-    console.log('received message', message);
+    //console.log('received message', message);
 
     if (!message.messageType){ return }
 

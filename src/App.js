@@ -21,6 +21,7 @@ function getWebSocket() {
     websocket || new WebSocket(`ws://${window.location.hostname}:4040`));
 }
 
+
 function App() {
   /**
    * @type {React.RefObject<HTMLCanvasElement>}
@@ -41,13 +42,6 @@ function App() {
     canvasEventHandler.current.setUserColor(color);
     localStorage.setItem("color", color);
     _setColor(color);
-
-    ws.send(JSON.stringify({
-      messageType: 'userUpdate',
-      data: {
-        color: color,
-      },
-    }));
   }
 
   const [name] = useState(() => {
@@ -68,6 +62,13 @@ function App() {
 
       canvasEventHandler.current = new CanvasEventHandler(canvasRenderApi.current, ws);
       canvasEventHandler.current.setUserColor(color);
+
+      if (window.location.pathname === '/sierpinski'){
+        import('./bots/sierpinski').then((Sierpinski) => {
+          let bot = new Sierpinski.SierpinskiBot(canvasEventHandler);
+          setTimeout(bot.draw, 1000);
+        });
+      }
 
       ws.onmessage = (e) => {
         const message = JSON.parse(e.data);

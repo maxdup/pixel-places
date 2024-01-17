@@ -9,6 +9,38 @@ function CanvasEventHandler(canvasRenderApi, ws){
 
   this.setUserColor = (color) => {
     userColor = color;
+    if (ws.readyState === WebSocket.OPEN){
+      ws.send(JSON.stringify({
+        messageType: 'userUpdate',
+        data: {
+          color: userColor,
+        },
+      }));
+    }
+  }
+
+  this.inputPixel = (localX, localY) => {
+    // Validate coords are inside the canvas
+    if ( localX < 0 &&
+         localY < 0 &&
+         localX >= canvasSize.width &&
+         localY >= canvasSize.height){
+      return false;
+    }
+
+    canvasRenderApi.exec('drawPixel', {
+      x: localX,
+      y: localY,
+      color: userColor
+    });
+
+    ws.send(JSON.stringify({
+      messageType: 'pixelUpdate',
+      data: {
+        x: localX,
+        y: localY,
+      }
+    }));
   }
 
   let userInputPixel = (globalX, globalY) => {
@@ -16,26 +48,7 @@ function CanvasEventHandler(canvasRenderApi, ws){
     let localX = globalX - Math.round(rect.left);
     let localY = globalY - Math.round(rect.top);
 
-    // Validate coords are inside the canvas
-    if ( localX > 0 &&
-         localY > 0 &&
-         localX < canvasSize.width &&
-         localY < canvasSize.height){
-
-      canvasRenderApi.exec('drawPixel', {
-        x: localX,
-        y: localY,
-        color: userColor
-      });
-
-      ws.send(JSON.stringify({
-        messageType: 'pixelUpdate',
-        data: {
-          x: localX,
-          y: localY,
-        }
-      }));
-    }
+    this.inputPixel(localX, localY);
   }
 
   // mousedown event
